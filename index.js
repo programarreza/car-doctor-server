@@ -10,7 +10,9 @@ const port = process.env.PORT || 5000;
 // middleware
 app.use(cors({
 	origin: [
-		'http://localhost:5173'
+		'http://localhost:5173',
+		// 'https://car-doctor-a5f92.web.app',
+		// 'https://car-doctor-a5f92.firebaseapp.com'
 	],
 	credentials: true
 }));
@@ -32,12 +34,6 @@ const client = new MongoClient(uri, {
 });
 
 // middleware
-// const logger = async (req, res, next) => {
-// 	console.log('called', req.host, req.originalUrl);
-// 	next();
-// }
-
-// middleware
 const logger = (req, res, next) => {
 	console.log('log: info', req.method, req.url);
 	next();
@@ -45,8 +41,6 @@ const logger = (req, res, next) => {
 
 const verifyToken = (req, res, next) => {
 	const token = req?.cookies?.token;
-	// console.log('token in the middleware', token);
-	// no token available
 	if(!token){
 		return res.status(401).send({message: 'unauthorized access'})
 	}
@@ -60,48 +54,14 @@ const verifyToken = (req, res, next) => {
 }
 
 
-// const verifyToken = async (req, res, next) => {
-// 	const token = req.cookies?.token;
-// 	console.log('value of token in middleware', token);
-// 	if (!token) {
-// 		return res.status(401).send({ message: 'not authorized' })
-// 	}
-
-// 	jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-// 		// error
-// 		if (err) {
-// 			console.log(err);
-// 			return res.status(401).send({ message: 'unauthorized' })
-// 		}
-
-// 		// if token is valid then it would be decoded
-// 		console.log('value in the token', decoded);
-// 		req.user = decoded;
-// 		next();
-// 	})
-// }
 
 async function run() {
 	try {
 		// Connect the client to the server	(optional starting in v4.7)
-		await client.connect();
+		// await client.connect();
 
 		const serviceCollections = client.db('carDoctor').collection('services');
 		const bookingCollections = client.db('carDoctor').collection('bookings');
-
-		// auth related api
-		// app.post('/jwt', logger, async (req, res) => {
-		// 	const user = req.body;
-		// 	console.log(user);
-		// 	const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' })
-		// 	res
-		// 		.cookie('token', token, {
-		// 			httpOnly: true,
-		// 			secure: false,
-		// 			// sameSite: 'none'
-		// 		})
-		// 		.send({ success: true })
-		// })
 
 
 		// auth related
@@ -127,7 +87,17 @@ async function run() {
 
 		// services related api , logger
 		app.get('/services', logger, async (req, res) => {
-			const cursor = serviceCollections.find();
+			const filter = req.query;
+			console.log(filter);
+			let sort = {
+				title: {$regex: filter.search, $options: 'i'}
+			}
+			const options = {
+				sort: {
+					price: filter.sort === 'asc' ? 1 : -1
+				}
+			}
+			const cursor = serviceCollections.find(sort, options)
 			const result = await cursor.toArray();
 			res.send(result);
 		})
@@ -151,11 +121,7 @@ async function run() {
 			if(req.user.email !== req.query.email){
 				return res.status(403).send({message: 'forbidden access'})
 			}
-			// console.log('token', req.cookies.token);
-			// console.log('user in the valid token', req.user);
-			// if (req.query.email !== req.user.email) {
-			// 	return res.status(403).send({ message: 'forbidden access' })
-			// }
+		
 			let query = {}
 			if (req.query?.email) {
 				query = { email: req.query.email }
@@ -193,6 +159,11 @@ async function run() {
 			const result = await bookingCollections.updateOne(filter, updateDoc);
 			res.send(result);
 		})
+
+		// shorting service
+		
+
+		
 
 
 		// Send a ping to confirm a successful connection
